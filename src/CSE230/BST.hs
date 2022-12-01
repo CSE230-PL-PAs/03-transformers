@@ -214,8 +214,8 @@ prop_genBalBSO = forAll genHeightAndBal (isBSO . snd)
 genHeightAndBal :: Gen (Int, BST Int Char)
 genHeightAndBal = do
   h <- chooseInt (0, 10)
-  t <- genBal 3
-  return (3, t)
+  t <- genBal h
+  return (h, t)
 
 -- >>> sample $ genBal 2
 
