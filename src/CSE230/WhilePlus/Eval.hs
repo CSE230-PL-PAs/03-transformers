@@ -77,9 +77,87 @@ printString msg = do
     `IntVal 2`.
 -}
 
+checkIntVal :: Value -> Bool
+checkIntVal (IntVal _) = True
+checkIntVal _ = False
+
+getIntVal :: Value -> Int
+getIntVal (IntVal v) = v
+getIntVal _ = 0
+
+getBoolVal :: Value -> Bool
+getBoolVal (BoolVal v) = v
+getBoolVal _ = False
+
+evalE :: (MonadWhile m) => Expression -> m Value
+evalE (Var v) = readVar v
+evalE (Val v) = return v
+evalE (Op bop e1 e2) = do
+                          v1 <- evalE e1
+                          v2 <- evalE e2
+                          case bop of
+                            Plus -> if checkIntVal v1 && checkIntVal v2
+                                    then return $ IntVal (getIntVal v1 + getIntVal v2)
+                                    else throwError (IntVal 2)
+                            Minus -> if checkIntVal v1 && checkIntVal v2
+                                     then return $ IntVal (getIntVal v1 - getIntVal v2)
+                                     else throwError (IntVal 2)
+                            Times -> if checkIntVal v1 && checkIntVal v2
+                                     then return $ IntVal (getIntVal v1 * getIntVal v2)
+                                     else throwError (IntVal 2)
+                            Divide -> if checkIntVal v1 && checkIntVal v2
+                                      then if getIntVal v2 == 0
+                                           then throwError (IntVal 1)
+                                           else return $ IntVal (getIntVal v1 `div` getIntVal v2)
+                                      else throwError (IntVal 2)
+                            Gt -> if checkIntVal v1 && checkIntVal v2
+                                  then return $ BoolVal (getIntVal v1 > getIntVal v2)
+                                  else throwError (IntVal 2)
+                            Ge -> if checkIntVal v1 && checkIntVal v2
+                                  then return $ BoolVal (getIntVal v1 >= getIntVal v2)
+                                  else throwError (IntVal 2)
+                            Lt -> if checkIntVal v1 && checkIntVal v2
+                                  then return $ BoolVal (getIntVal v1 < getIntVal v2)
+                                  else throwError (IntVal 2)
+                            Le -> if checkIntVal v1 && checkIntVal v2
+                                  then return $ BoolVal (getIntVal v1 <= getIntVal v2)
+                                  else throwError (IntVal 2)
 
 evalS :: (MonadWhile m) => Statement -> m ()
-evalS = error "fill this in"
+evalS (Assign v expr) = do
+                          eValue <- evalE expr
+                          writeVar v eValue
+evalS (If expr st1 st2) = do
+                            bres <- evalE expr
+                            if checkIntVal bres
+                            then throwError bres
+                            else if getBoolVal bres
+                                 then evalS st1
+                                 else evalS st2
+evalS w@(While expr st) = do
+                            bres <- evalE expr
+                            if checkIntVal bres
+                            then throwError bres
+                            else do
+                                   if getBoolVal bres
+                                   then
+                                      do
+                                        evalS st
+                                        evalS w
+                                   else return ()
+evalS (Sequence st1 st2) = evalS st1 >> evalS st2
+evalS (Print s expr) = do
+                         v <- evalE expr
+                         WS st log <- get
+                         put $ WS st ((s ++ show v) : log)
+evalS (Throw expr) = do
+                       v <- evalE expr
+                       throwError v
+evalS (Try st1 v st2) = do
+                          catchError (evalS st1) (\e -> do
+                                                          writeVar v e
+                                                          evalS st2)
+evalS _ = return ()
 
 --------------------------------------------------------------------------
 -- | Next, we will implement a *concrete instance* of a monad `m` that
@@ -93,7 +171,7 @@ type Eval a = ExceptT Value (StateT WState Identity) a
 --   a starting `WState`. You can read the docs for `runState` and `runExceptT` 
 --------------------------------------------------------------------------
 runEval :: Eval a -> WState -> (Either Value a, WState)
-runEval act s = error "fill this in"
+runEval act s = runIdentity (runStateT (runExceptT act) s)
 
 {- | `execute sto stmt` returns a triple `(sto', exn, log)` where
       * `st'` is the output state,
@@ -114,12 +192,6 @@ leftMaybe (Right _) = Nothing
 ------------------------------------------------------------------------------------
 -- | When you are done you should see the following behavior 
 ------------------------------------------------------------------------------------
-
--- >>> execute initStore test1 == out1
--- True
-
--- >>> execute initStore test2 == out2
--- True
 
 -- >>> execute initStore test3 == out3 
 -- True
