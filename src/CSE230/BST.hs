@@ -78,7 +78,11 @@ genBSTop  = frequency [(5, genBSTadd), (1, genBSTdel)]
 --   If `k` already exists in `t` then its value should be *replaced* with `v`. 
 ---------------------------------------------------------------------------------------------------
 bstInsert :: (Ord k) => k -> v -> BST k v -> BST k v
-bstInsert = error "fill this in"
+bstInsert k v Emp = Bind k v Emp Emp
+bstInsert k v (Bind bk bv l r)
+  | bk == k = Bind k v l r
+  | bk > k = Bind bk bv (bstInsert k v l) r
+  | otherwise = Bind bk bv l (bstInsert k v r)
 
 -- When you are done, your code should satisfy the following QC properties.
 
@@ -91,10 +95,8 @@ prop_insert_map = forAll (listOf genBSTadd) $ \ops ->
                     eqMap (ofBSTops ops) (mapOfBSTops ops)
 
 -- >>> quickCheck prop_insert_bso
--- +++ OK, passed 100 tests.
 
 -- >>> quickCheck prop_insert_map
--- +++ OK, passed 100 tests.
 
 
 ---------------------------------------------------------------------------------------------------
@@ -104,10 +106,28 @@ prop_insert_map = forAll (listOf genBSTadd) $ \ops ->
 --   then the tree `t` is returned unchanged as the output.
 --   (Hint: feel free to look up the algorithm for BST deletion, e.g. on Wikipedia) 
 ---------------------------------------------------------------------------------------------------
-
 bstDelete :: (Ord k) => k -> BST k v -> BST k v
-bstDelete = error "fill this in"
-
+bstDelete _ Emp = Emp
+bstDelete k (Bind bk bv Emp Emp) = if bk == k
+                                   then Emp
+                                   else Bind bk bv Emp Emp
+bstDelete k (Bind bk bv Emp r) = if bk == k
+                                 then r
+                                 else Bind bk bv Emp (bstDelete k r)
+bstDelete k (Bind bk bv l Emp) = if bk == k
+                                 then l
+                                 else Bind bk bv (bstDelete k l) Emp
+bstDelete k (Bind bk bv l r)
+  | bk > k = Bind bk bv (bstDelete k l) r
+  | bk < k = Bind bk bv l (bstDelete k r)
+  | otherwise = Bind pk pv l (bstDelete pk r)
+    where
+      (Bind pk pv _ _) = minValueNode r
+        where
+          minValueNode (Bind rk rv Emp rr) =  Bind rk rv Emp rr
+          minValueNode (Bind _ _ rl _) = minValueNode rl
+          minValueNode Emp = Emp -- Not gonna happen
+  
 -- When you are done, your code should satisfy the following QC properties.
 
 prop_delete_bso :: Property
@@ -159,8 +179,22 @@ isBal Emp            = True
 --   We expect your generator to have some variety:
 --   - some trees it generates have to be non-*perfect*
 --   - some trees it generates have to be non-*full*
+
+genBalGivenInterval :: Int -> Int -> Gen (BST Int Char)
+genBalGivenInterval 0 _ = return Emp
+genBalGivenInterval 1 cur = do
+                                curv <- choose('a', 'z')
+                                return (Bind cur curv Emp Emp)
+genBalGivenInterval h cur = do
+                                lh <- frequency [(5, choose (h-1, h-1)), (1, choose(h-2, h-2))]
+                                rh <- frequency [(5, choose (h-1, h-1)), (lh - h + 2, choose(h-2, h-2))]
+                                curv <- choose('a', 'z')
+                                lt <- genBalGivenInterval lh (cur - (2^lh))
+                                rt <- genBalGivenInterval rh (cur + (2^rh))
+                                return (Bind cur curv lt rt)
+
 genBal :: Int -> Gen (BST Int Char)
-genBal h = error "fill this in"
+genBal h = genBalGivenInterval h (2^h)
 
 -- Once you have implemented `genBal`, the following three properties should pass:
 
@@ -180,14 +214,8 @@ prop_genBalBSO = forAll genHeightAndBal (isBSO . snd)
 genHeightAndBal :: Gen (Int, BST Int Char)
 genHeightAndBal = do
   h <- chooseInt (0, 10)
-  t <- genBal h
-  return (h, t)
+  t <- genBal 3
+  return (3, t)
 
--- >>> quickCheck prop_genBalHeight
--- +++ OK, passed 100 tests.
+-- >>> sample $ genBal 2
 
--- >>> quickCheck prop_genBalBalanced
--- +++ OK, passed 100 tests.
-
--- >>> quickCheck prop_genBalBSO
--- +++ OK, passed 100 tests.

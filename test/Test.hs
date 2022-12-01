@@ -11,7 +11,7 @@ import qualified Data.Map as M
 main :: IO ()
 main = runTests 
   [ probWhile
-  -- , probBST
+  , probBST
   ]
 
 probWhile ::  Score -> TestTree
