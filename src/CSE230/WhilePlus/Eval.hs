@@ -130,14 +130,14 @@ evalS (Assign v expr) = do
 evalS (If expr st1 st2) = do
                             bres <- evalE expr
                             if checkIntVal bres
-                            then throwError bres
+                            then throwError (IntVal 2)
                             else if getBoolVal bres
                                  then evalS st1
                                  else evalS st2
 evalS w@(While expr st) = do
                             bres <- evalE expr
                             if checkIntVal bres
-                            then throwError bres
+                            then throwError (IntVal 2)
                             else do
                                    if getBoolVal bres
                                    then
